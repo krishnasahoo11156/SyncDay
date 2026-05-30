@@ -50,7 +50,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Exchange auth code for tokens
-    const tokens = await exchangeAuthCode(code);
+    const origin = request.nextUrl.origin;
+    const tokens = await exchangeAuthCode(code, `${origin}/api/google/callback`);
 
     if (!tokens.refreshToken) {
       // Re-consent is required to get a refresh token if previously connected

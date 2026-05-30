@@ -13,10 +13,11 @@ export interface GoogleTokens {
 /**
  * Generates the Google OAuth consent redirect URL
  */
-export function getGoogleAuthUrl(state: string): string {
+export function getGoogleAuthUrl(state: string, customRedirectUri?: string): string {
+  const redirectUri = customRedirectUri || process.env.GOOGLE_REDIRECT_URI!;
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID!,
-    redirect_uri: process.env.GOOGLE_REDIRECT_URI!,
+    redirect_uri: redirectUri,
     response_type: "code",
     scope: "https://www.googleapis.com/auth/calendar.app.created openid email",
     access_type: "offline",
@@ -30,7 +31,8 @@ export function getGoogleAuthUrl(state: string): string {
 /**
  * Exchanges the Google authorization code for Access & Refresh tokens
  */
-export async function exchangeAuthCode(code: string): Promise<GoogleTokens> {
+export async function exchangeAuthCode(code: string, customRedirectUri?: string): Promise<GoogleTokens> {
+  const redirectUri = customRedirectUri || process.env.GOOGLE_REDIRECT_URI!;
   const res = await fetch(GOOGLE_TOKEN_ENDPOINT, {
     method: "POST",
     headers: {
@@ -41,7 +43,7 @@ export async function exchangeAuthCode(code: string): Promise<GoogleTokens> {
       client_secret: process.env.GOOGLE_CLIENT_SECRET!,
       code: code,
       grant_type: "authorization_code",
-      redirect_uri: process.env.GOOGLE_REDIRECT_URI!,
+      redirect_uri: redirectUri,
     }),
   });
 
