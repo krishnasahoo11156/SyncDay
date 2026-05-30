@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import Sidebar from "@/components/dashboard/sidebar";
 import Topbar from "@/components/dashboard/topbar";
+import { syncEventsAction } from "@/actions/sync-actions";
 
 export default async function DashboardLayout({
   children,
@@ -49,6 +50,7 @@ export default async function DashboardLayout({
         <Topbar
           isGoogleConnected={isGoogleConnected}
           lastSyncedAt={connection?.last_synced_at}
+          onSyncTrigger={syncEventsAction}
         />
 
         {/* Viewport Content Node */}
