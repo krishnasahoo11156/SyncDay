@@ -33,8 +33,10 @@ export async function GET(request: NextRequest) {
       sameSite: "lax",
     });
 
-    const redirectUrl = getGoogleAuthUrl(state);
+    const origin = request.nextUrl.origin;
+    const redirectUrl = getGoogleAuthUrl(state, `${origin}/api/google/callback`);
     return NextResponse.redirect(redirectUrl);
+
   } catch (err: any) {
     console.error("Connect Google OAuth Error:", err.message);
     const errorUrl = new URL("/dashboard/integrations", request.nextUrl.origin);
