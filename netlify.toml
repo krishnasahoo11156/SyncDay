@@ -1,0 +1,7 @@
+# Netlify configuration file for SyncDay deployment
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[functions]
+  external_node_modules = ["@opentelemetry/api"]
