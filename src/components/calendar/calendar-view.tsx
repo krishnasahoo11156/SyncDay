@@ -5,20 +5,13 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
-import { updateEventAction } from "@/actions/event-actions";
+import {
+  createEventAction,
+  updateEventAction,
+  deleteEventAction,
+} from "@/actions/event-actions";
+import EventModal from "./event-modal";
 import { Loader2 } from "lucide-react";
-
-interface EventData {
-  id: string;
-  title: string;
-  description?: string;
-  location?: string;
-  start_at: string;
-  end_at: string;
-  is_all_day: boolean;
-  color?: string;
-  sync_status: "pending" | "synced" | "failed";
-}
 
 interface CalendarViewProps {
   initialEvents: any[];
@@ -44,6 +37,13 @@ export default function CalendarView({ initialEvents }: CalendarViewProps) {
 
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // Modal State Control
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<"create" | "edit">("create");
+  const [selectedEventData, setSelectedEventData] = useState<any | undefined>(
+    undefined
+  );
+
   // Drag and drop / Resize Event Handler
   const handleEventChange = async (changeInfo: any) => {
     setIsUpdating(true);
@@ -66,7 +66,7 @@ export default function CalendarView({ initialEvents }: CalendarViewProps) {
       alert(`Failed to update event: ${res.error}`);
       changeInfo.revert();
     } else if (res && res.event) {
-      // Update local state sync status to pending since it changed
+      // Update local state sync status to pending
       setEvents((prev) =>
         prev.map((evt) =>
           evt.id === eventId
@@ -87,21 +87,116 @@ export default function CalendarView({ initialEvents }: CalendarViewProps) {
     setIsUpdating(false);
   };
 
-  // Click on empty space (to be wired to Chunk 3C modal)
+  // Open modal in Create mode on cell click
   const handleDateClick = (arg: any) => {
-    // Temporary placeholder trigger for Chunk 3C
-    console.log("Date slot clicked:", arg.dateStr);
+    const startDate = new Date(arg.date);
+    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // Default 1 hour duration
+
+    setSelectedEventData({
+      title: "",
+      description: "",
+      location: "",
+      startAt: startDate.toISOString(),
+      endAt: endDate.toISOString(),
+      isAllDay: arg.allDay,
+      color: "#7c3aed",
+    });
+    setModalMode("create");
+    setIsModalOpen(true);
   };
 
-  // Click on existing event (to be wired to Chunk 3C modal)
+  // Open modal in Edit mode on event card click
   const handleEventClick = (clickInfo: any) => {
-    // Temporary placeholder trigger for Chunk 3C
-    console.log("Event card clicked:", clickInfo.event.title);
+    const { event } = clickInfo;
+    setSelectedEventData({
+      id: event.id,
+      title: event.title,
+      description: event.extendedProps.description || "",
+      location: event.extendedProps.location || "",
+      startAt: event.start.toISOString(),
+      endAt: (event.end || event.start).toISOString(),
+      isAllDay: event.allDay,
+      color: event.backgroundColor,
+    });
+    setModalMode("edit");
+    setIsModalOpen(true);
+  };
+
+  // Submit create or edit form
+  const handleModalSubmit = async (formData: any) => {
+    setIsUpdating(true);
+    if (modalMode === "create") {
+      const res = await createEventAction(formData);
+      if (res && res.error) {
+        throw new Error(res.error);
+      } else if (res && res.event) {
+        // Append newly created event to local state
+        setEvents((prev) => [
+          ...prev,
+          {
+            id: res.event.id,
+            title: res.event.title,
+            start: res.event.start_at,
+            end: res.event.end_at,
+            allDay: res.event.is_all_day,
+            backgroundColor: res.event.color || "#7c3aed",
+            borderColor: res.event.color || "#7c3aed",
+            extendedProps: {
+              description: res.event.description,
+              location: res.event.location,
+              syncStatus: res.event.sync_status,
+            },
+          },
+        ]);
+      }
+    } else {
+      // Edit mode
+      const res = await updateEventAction(formData.id, formData);
+      if (res && res.error) {
+        throw new Error(res.error);
+      } else if (res && res.event) {
+        // Replace event in local state
+        setEvents((prev) =>
+          prev.map((evt) =>
+            evt.id === formData.id
+              ? {
+                  ...evt,
+                  title: res.event.title,
+                  start: res.event.start_at,
+                  end: res.event.end_at,
+                  allDay: res.event.is_all_day,
+                  backgroundColor: res.event.color || "#7c3aed",
+                  borderColor: res.event.color || "#7c3aed",
+                  extendedProps: {
+                    description: res.event.description,
+                    location: res.event.location,
+                    syncStatus: res.event.sync_status,
+                  },
+                }
+              : evt
+          )
+        );
+      }
+    }
+    setIsUpdating(false);
+  };
+
+  // Delete event handler
+  const handleModalDelete = async (eventId: string) => {
+    setIsUpdating(true);
+    const res = await deleteEventAction(eventId);
+    if (res && res.error) {
+      throw new Error(res.error);
+    } else {
+      // Remove deleted event from local state
+      setEvents((prev) => prev.filter((evt) => evt.id !== eventId));
+    }
+    setIsUpdating(false);
   };
 
   return (
     <div className="h-full flex flex-col relative">
-      {/* Background loading spinner overlay during drag & drop */}
+      {/* Background loading spinner overlay */}
       {isUpdating && (
         <div className="absolute inset-0 bg-zinc-950/20 backdrop-blur-[1px] z-20 flex items-center justify-center rounded-lg">
           <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs text-brand-400 font-mono shadow-xl">
@@ -134,6 +229,16 @@ export default function CalendarView({ initialEvents }: CalendarViewProps) {
           contentHeight={600}
         />
       </div>
+
+      {/* Event Details and Creation Dialog Modal */}
+      <EventModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        mode={modalMode}
+        eventData={selectedEventData}
+        onSubmit={handleModalSubmit}
+        onDelete={handleModalDelete}
+      />
     </div>
   );
 }
